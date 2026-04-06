@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ずけいであそぼ！</title>
+<style>
+* {
+  margin:0; padding:0; box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  user-select:none; -webkit-user-select:none;
+}
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  font-family:'Hiragino Maru Gothic ProN','Hiragino Sans',Arial,sans-serif;
+  background:#FFF8F0;
+}
+
+/* ===== 縦向き警告 ===== */
+#rotate-msg {
+  display:none;
+  position:fixed; inset:0; z-index:999;
+  background:#FFE8CC;
+  flex-direction:column;
+  align-items:center; justify-content:center; gap:3vh;
+}
+#rotate-msg p { font-size:6vw; font-weight:900; color:#3D2B1F; text-align:center; }
+@media (orientation:portrait) {
+  #rotate-msg   { display:flex; }
+  #scr-title,
+  #scr-game,
+  #scr-result   { display:none !important; }
+}
+
+/* ===== タイトル ===== */
+#scr-title {
+  width:100%; height:100%;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:4vh;
+  background:#FFE8CC;
+}
+#scr-title h1 {
+  font-size:10vh; font-weight:900; color:#3D2B1F;
+  text-align:center; line-height:1.2;
+  text-shadow:0.5vh 0.5vh 0 #FFB347;
+}
+#btn-start {
+  font-size:5vh; font-weight:900; color:#fff;
+  background:#FF6B6B; border:none; border-radius:8vh;
+  padding:1.5vh 7vw; cursor:pointer;
+  box-shadow:0 0.8vh 0 #C94A4A; letter-spacing:0.5vw;
+}
+#btn-start:active { transform:translateY(0.5vh); box-shadow:0 0.2vh 0 #C94A4A; }
+
+/* ===== ゲーム ===== */
+#scr-game {
+  width:100%; height:100%;
+  display:none; flex-direction:column;
+}
+
+/* ヘッダー：10vh 固定 */
+#header {
+  height:10vh; flex-shrink:0;
+  display:flex; align-items:center; gap:1vw;
+  padding:0 2vw; background:#fff;
+  box-shadow:0 0.4vh 1vh rgba(0,0,0,.1);
+}
+#score-box {
+  font-size:3.2vh; font-weight:900; color:#3D2B1F;
+  min-width:9vw; white-space:nowrap;
+}
+#q-area { flex:1; text-align:center; line-height:1.2; }
+#q-label { font-size:2vh; color:#999; }
+#q-name  { font-size:5.5vh; font-weight:900; color:#3D2B1F; }
+#btn-speak {
+  font-size:3.5vh; background:none; border:none;
+  cursor:pointer; vertical-align:middle; padding:0 0.5vw;
+}
+#btn-home {
+  font-size:2.8vh; font-weight:900; background:#eee;
+  border:none; border-radius:1.2vh; padding:0.8vh 1.5vw;
+  cursor:pointer; color:#3D2B1F; flex-shrink:0;
+}
+
+/* グリッド：残り 90vh */
+#grid {
+  flex:1; min-height:0;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(2,1fr);
+  gap:1vh; padding:1vh 1vw;
+}
+
+/* カード */
+.card {
+  background:#fff; border-radius:1.5vh;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  border:0.4vh solid transparent;
+  box-shadow:0 0.5vh 0 rgba(0,0,0,.12);
+  cursor:pointer; overflow:hidden;
+  min-height:0; /* flex子要素の縮小を許可 */
+}
+.card:active { transform:translateY(0.4vh); box-shadow:0 0.1vh 0 rgba(0,0,0,.12); }
+.card.ok  { border-color:#6BCB77; animation:anim-ok  .6s ease; }
+.card.bad { border-color:#FF6B6B; animation:anim-bad .4s ease; }
+@keyframes anim-ok {
+  0%{transform:scale(1)} 40%{transform:scale(1.08) rotate(3deg)}
+  70%{transform:scale(1.04) rotate(-2deg)} 100%{transform:scale(1)}
+}
+@keyframes anim-bad {
+  0%,100%{transform:translateX(0)} 25%{transform:translateX(-1vw)}
+  50%{transform:translateX(1vw)} 75%{transform:translateX(-0.6vw)}
+}
+
+/* SVG エリア：flex:1 で残りを占有、min-height:0 で縮小許可 */
+.card-svg {
+  flex:1; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+  width:100%; padding:1vh 0.8vw 0;
+  pointer-events:none;
+}
+.card-svg svg { max-width:100%; max-height:100%; display:block; }
+
+/* ラベル：flex-shrink:0 で絶対に縮まない */
+.card-lbl {
+  flex-shrink:0;
+  font-size:2.4vh; font-weight:900;
+  padding:0.4vh 0 0.8vh;
+  pointer-events:none;
+  white-space:nowrap;
+}
+
+/* ===== リザルト ===== */
+#scr-result {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.55);
+  align-items:center; justify-content:center;
+  z-index:100;
+}
+#result-box {
+  background:#fff; border-radius:3vh;
+  padding:3vh 6vw; text-align:center;
+  box-shadow:0 2vh 6vw rgba(0,0,0,.3);
+  max-width:70vw;
+}
+#result-emoji { font-size:9vh; }
+#result-msg {
+  font-size:6vh; font-weight:900; color:#3D2B1F;
+  margin:1vh 0; white-space:pre-line;
+}
+#result-score { font-size:3.5vh; color:#888; margin-bottom:2vh; }
+#btn-retry {
+  font-size:3.5vh; font-weight:900; color:#fff; background:#6BCB77;
+  border:none; border-radius:8vh; padding:1.2vh 5vw;
+  cursor:pointer; box-shadow:0 0.6vh 0 #4A9A58; letter-spacing:0.4vw;
+}
+#btn-retry:active { transform:translateY(0.4vh); box-shadow:0 0.2vh 0 #4A9A58; }
+
+/* confetti */
+.cf {
+  position:fixed; border-radius:2px; pointer-events:none;
+  z-index:200; animation:fall linear forwards;
+}
+@keyframes fall {
+  from{opacity:1} to{transform:translateY(110vh) rotate(720deg);opacity:0}
+}
+</style>
+</head>
+<body>
+
+<!-- 縦向き警告 -->
+<div id="rotate-msg">
+  <p>📱<br>タブレットを<br>よこむきにしてね！</p>
+</div>
+
+<!-- タイトル -->
+<div id="scr-title">
+  <h1>ずけいで<br>あそぼ！</h1>
+  <button id="btn-start" onclick="startGame()">はじめる</button>
+</div>
+
+<!-- ゲーム -->
+<div id="scr-game">
+  <div id="header">
+    <div id="score-box">⭐ <span id="score-num">0</span></div>
+    <div id="q-area">
+      <div id="q-label">どれかな？</div>
+      <div id="q-name">
+        <span id="q-text">？</span>
+        <button id="btn-speak" onclick="speakCurrent()">🔊</button>
+      </div>
+    </div>
+    <button id="btn-home" onclick="goHome()">🏠</button>
+  </div>
+  <div id="grid"></div>
+</div>
+
+<!-- リザルト -->
+<div id="scr-result">
+  <div id="result-box">
+    <div id="result-emoji">🎉</div>
+    <div id="result-msg">すごい！</div>
+    <div id="result-score"></div>
+    <button id="btn-retry" onclick="startGame()">もういちど</button>
+  </div>
+</div>
+
+<script>
+// 横向きにロック試行
+try {
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(function(){});
+  }
+} catch(e) {}
+
+var SHAPES = [
+  { name:'まる',
+    color:'#FF6B6B', vb:'0 0 100 100',
+    path:'<circle cx="50" cy="50" r="44"/>' },
+  { name:'さんかく',
+    color:'#FFD93D', vb:'0 0 100 100',
+    path:'<polygon points="50,6 96,92 4,92"/>' },
+  { name:'しかく',
+    color:'#6BCB77', vb:'0 0 100 100',
+    path:'<rect x="6" y="6" width="88" height="88" rx="6"/>' },
+  { name:'ながしかく',
+    color:'#4D96FF', vb:'0 0 160 100',
+    path:'<rect x="4" y="18" width="152" height="64" rx="6"/>' },
+  { name:'ほし',
+    color:'#FF9A3C', vb:'0 0 100 100',
+    path:'<polygon points="50,4 61,35 95,35 68,55 79,89 50,69 21,89 32,55 5,35 39,35"/>' },
+  { name:'ハート',
+    color:'#FF6FD8', vb:'0 0 100 100',
+    /* 左右対称・なめらかなハート */
+    path:'<path d="M50 80 C50 80 12 56 12 34 C12 20 22 10 34 10 C42 10 48 15 50 20 C52 15 58 10 66 10 C78 10 88 20 88 34 C88 56 50 80 50 80Z"/>' }
+];
+
+var score=0, totalQ=0, answered=false, correct=null, TOTAL=8;
+
+// 音声リストをあらかじめ読み込んでおく
+var voicesReady = false;
+function initVoices() {
+  if (!window.speechSynthesis) return;
+  var voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) { voicesReady = true; return; }
+  // 読み込み完了イベントを待つ
+  window.speechSynthesis.addEventListener('voiceschanged', function() {
+    voicesReady = true;
+  });
+}
+initVoices();
+
+function speak(txt) {
+  try {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+
+    // まだ読み込めていない場合は少し待って再試行
+    if (!voicesReady) {
+      setTimeout(function() { speak(txt); }, 300);
+      return;
+    }
+
+    var u = new SpeechSynthesisUtterance(txt);
+    u.lang = 'ja-JP';
+    u.rate = 0.85;
+    u.pitch = 1.1;
+
+    // 日本語ボイスを明示的に指定する
+    var voices = window.speechSynthesis.getVoices();
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].lang === 'ja-JP' || voices[i].lang === 'ja') {
+        u.voice = voices[i];
+        break;
+      }
+    }
+
+    window.speechSynthesis.speak(u);
+  } catch(e) {}
+}
+function speakCurrent() { if (correct) speak(correct.name); }
+
+function startGame() {
+  score=0; totalQ=0;
+  document.getElementById('score-num').textContent = '0';
+  document.getElementById('scr-title').style.display  = 'none';
+  document.getElementById('scr-result').style.display = 'none';
+  document.getElementById('scr-game').style.display   = 'flex';
+  nextQ();
+}
+
+function nextQ() {
+  if (totalQ >= TOTAL) { showResult(); return; }
+  totalQ++;
+  answered = false;
+
+  var arr = SHAPES.slice().sort(function(){ return Math.random()-0.5; });
+  var choices = arr.slice(0,6);
+  correct = choices[Math.floor(Math.random()*choices.length)];
+
+  document.getElementById('q-text').textContent = correct.name;
+  setTimeout(function(){ speak(correct.name); }, 400);
+
+  var grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  for (var i=0; i<choices.length; i++) {
+    (function(shape){
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.background = shape.color+'1A';
+
+      var sw = document.createElement('div');
+      sw.className = 'card-svg';
+      sw.innerHTML = '<svg viewBox="'+shape.vb+'" xmlns="http://www.w3.org/2000/svg">'
+        +'<g fill="'+shape.color+'">'+shape.path+'</g></svg>';
+
+      var lbl = document.createElement('div');
+      lbl.className = 'card-lbl';
+      lbl.textContent = shape.name;
+      lbl.style.color = shape.color;
+
+      card.appendChild(sw);
+      card.appendChild(lbl);
+      card.onclick = function(){ onTap(card, shape); };
+      grid.appendChild(card);
+    })(choices[i]);
+  }
+}
+
+function onTap(card, shape) {
+  if (answered) return;
+  if (shape.name === correct.name) {
+    answered = true;
+    card.classList.add('ok');
+    score++;
+    document.getElementById('score-num').textContent = score;
+    speak('せいかい！'+correct.name+'！');
+    confetti();
+    setTimeout(nextQ, 1400);
+  } else {
+    card.classList.add('bad');
+    speak('もういちど！'+correct.name+'はどれかな？');
+    setTimeout(function(){ card.classList.remove('bad'); }, 500);
+  }
+}
+
+function showResult() {
+  document.getElementById('scr-game').style.display   = 'none';
+  document.getElementById('scr-result').style.display = 'flex';
+  var pct=score/TOTAL, emoji, msg;
+  if      (pct>=1.0){ emoji='🏆'; msg='かんぺき！'; }
+  else if (pct>=0.7){ emoji='🎉'; msg='すごい！'; }
+  else if (pct>=0.4){ emoji='😊'; msg='がんばったね！'; }
+  else              { emoji='💪'; msg='つぎはもっと\nできるよ！'; }
+  document.getElementById('result-emoji').textContent = emoji;
+  document.getElementById('result-msg').textContent   = msg;
+  document.getElementById('result-score').textContent = '⭐ '+score+' / '+TOTAL;
+  confetti();
+  speak(msg.replace('\n','')+'！ '+score+'もん せいかい！');
+}
+
+function goHome() {
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e) {}
+  document.getElementById('scr-game').style.display   = 'none';
+  document.getElementById('scr-result').style.display = 'none';
+  document.getElementById('scr-title').style.display  = 'flex';
+}
+
+function confetti() {
+  var cols=['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#FF6FD8','#FF9A3C'];
+  for (var i=0; i<28; i++) {
+    (function(){
+      var c=document.createElement('div'); c.className='cf';
+      var sz=8+Math.random()*8;
+      c.style.left   = (Math.random()*100)+'vw';
+      c.style.top    = '-20px';
+      c.style.width  = sz+'px';
+      c.style.height = sz+'px';
+      c.style.background = cols[Math.floor(Math.random()*cols.length)];
+      c.style.animationDuration = (1.4+Math.random()*.8)+'s';
+      c.style.animationDelay   = (Math.random()*.4)+'s';
+      document.body.appendChild(c);
+      setTimeout(function(){ if(c.parentNode) c.parentNode.removeChild(c); },3000);
+    })();
+  }
+}
+</script>
+</body>
+</html>
