@@ -241,17 +241,69 @@ var score=0, totalQ=0, answered=false, correct=null, TOTAL=8;
 
 // 音声リストをあらかじめ読み込んでおく
 var voicesReady = false;
+var speakPending = null; // 保留中の発話テキスト（最新1件のみ）
+
+function doSpeak(txt) {
+  // cancel() 直後の speak() を Silk が無視することがある → 100ms 待ってから発話
+  setTimeout(function() {
+    try {
+      var u = new SpeechSynthesisUtterance(txt);
+      u.lang = 'ja-JP';
+      u.rate = 0.85;
+      u.pitch = 1.1;
+
+      // 日本語の女性ボイスを優先。なければ日本語ボイス全般、それもなければデフォルト
+      var voices = window.speechSynthesis.getVoices();
+      var jaVoices = [];
+      for (var i = 0; i < voices.length; i++) {
+        if (voices[i].lang === 'ja-JP' || voices[i].lang === 'ja') {
+          jaVoices.push(voices[i]);
+        }
+      }
+      // ボイス名から女性っぽいキーワードを探して優先選択
+      var femaleKeywords = ['female', 'woman', 'girl', 'kyoko', 'o-ren', 'hanami', 'haruka', 'nanami', 'hikari'];
+      var selected = null;
+      for (var j = 0; j < jaVoices.length; j++) {
+        var name = jaVoices[j].name.toLowerCase();
+        for (var k = 0; k < femaleKeywords.length; k++) {
+          if (name.indexOf(femaleKeywords[k]) !== -1) {
+            selected = jaVoices[j];
+            break;
+          }
+        }
+        if (selected) break;
+      }
+      // 女性ボイスが見つからなければ最初の日本語ボイスを使用
+      if (!selected && jaVoices.length > 0) { selected = jaVoices[0]; }
+      if (selected) { u.voice = selected; }
+
+      window.speechSynthesis.speak(u);
+    } catch(e) {}
+  }, 100);
+}
+
 function initVoices() {
   if (!window.speechSynthesis) return;
-  var voices = window.speechSynthesis.getVoices();
-  if (voices.length > 0) { voicesReady = true; return; }
-  // 読み込み完了イベントを待つ
-  window.speechSynthesis.addEventListener('voiceschanged', function() {
+
+  function onReady() {
+    if (voicesReady) return;
     voicesReady = true;
-  });
-  // Silk など voiceschanged が発火しないブラウザ向けフォールバック
-  // 1.5秒後に強制的にフラグを立て、無限リトライを防ぐ
-  setTimeout(function() { voicesReady = true; }, 1500);
+    // voicesReady になった時点で保留中の発話を実行
+    if (speakPending !== null) {
+      var txt = speakPending;
+      speakPending = null;
+      doSpeak(txt);
+    }
+  }
+
+  var voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) { onReady(); return; }
+
+  // 読み込み完了イベントを待つ
+  window.speechSynthesis.addEventListener('voiceschanged', onReady);
+
+  // Silk など voiceschanged が発火しないブラウザ向けフォールバック（1.5秒）
+  setTimeout(onReady, 1500);
 }
 initVoices();
 
@@ -265,32 +317,13 @@ function speak(txt) {
     }
     window.speechSynthesis.cancel();
 
-    // まだ読み込めていない場合は少し待って再試行
     if (!voicesReady) {
-      setTimeout(function() { speak(txt); }, 300);
+      // voicesReady になるまで保留（最新テキストのみ保持し、重複リトライを防ぐ）
+      speakPending = txt;
       return;
     }
 
-    // cancel() 直後の speak() を Silk が無視することがある → 50ms 待ってから発話
-    setTimeout(function() {
-      try {
-        var u = new SpeechSynthesisUtterance(txt);
-        u.lang = 'ja-JP';
-        u.rate = 0.85;
-        u.pitch = 1.1;
-
-        // 日本語ボイスを優先。なければデフォルトボイスで発話する
-        var voices = window.speechSynthesis.getVoices();
-        for (var i = 0; i < voices.length; i++) {
-          if (voices[i].lang === 'ja-JP' || voices[i].lang === 'ja') {
-            u.voice = voices[i];
-            break;
-          }
-        }
-
-        window.speechSynthesis.speak(u);
-      } catch(e) {}
-    }, 50);
+    doSpeak(txt);
   } catch(e) {}
 }
 function speakCurrent() { if (correct) speak(correct.name); }
