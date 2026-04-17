@@ -243,7 +243,7 @@ var score=0, totalQ=0, answered=false, correct=null, TOTAL=8;
 var voicesReady = false;
 var speakPending = null; // 保留中の発話テキスト（最新1件のみ）
 
-function doSpeak(txt) {
+function doSpeak(txt, onend) {
   // cancel() 直後の speak() を Silk が無視することがある → 100ms 待ってから発話
   setTimeout(function() {
     try {
@@ -277,8 +277,9 @@ function doSpeak(txt) {
       if (!selected && jaVoices.length > 0) { selected = jaVoices[0]; }
       if (selected) { u.voice = selected; }
 
+      if (onend) { u.onend = onend; u.onerror = onend; }
       window.speechSynthesis.speak(u);
-    } catch(e) {}
+    } catch(e) { if (onend) onend(); }
   }, 100);
 }
 
@@ -307,9 +308,9 @@ function initVoices() {
 }
 initVoices();
 
-function speak(txt) {
+function speak(txt, onend) {
   try {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) { if (onend) onend(); return; }
 
     // Silk で synthesis が paused 状態で固まることがある → resume してから cancel
     if (window.speechSynthesis.paused) {
@@ -323,8 +324,8 @@ function speak(txt) {
       return;
     }
 
-    doSpeak(txt);
-  } catch(e) {}
+    doSpeak(txt, onend);
+  } catch(e) { if (onend) onend(); }
 }
 function speakCurrent() { if (correct) speak(correct.name); }
 
@@ -383,9 +384,8 @@ function onTap(card, shape) {
     card.classList.add('ok');
     score++;
     document.getElementById('score-num').textContent = score;
-    speak('せいかい！'+correct.name+'！');
+    speak('せいかい！'+correct.name+'！', function() { setTimeout(nextQ, 300); });
     confetti();
-    setTimeout(nextQ, 1400);
   } else {
     card.classList.add('bad');
     speak('もういちど！'+correct.name+'はどれかな？');
